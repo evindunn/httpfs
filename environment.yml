@@ -2,6 +2,7 @@ name: httpfs
 dependencies:
   - python>=3.8.0
   - pip
+  - pyopenssl
   - pip:
       - fusepy>=3.0.1
       - requests
