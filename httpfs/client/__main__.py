@@ -3,8 +3,8 @@ import logging
 import os
 import sys
 import yaml
-from httpfs.common._CredModels import _Cred, _CredStore
-from httpfs.common._CredStorage import _TextCredStore
+from httpfs.common.CredModels import Cred, CredStore
+from httpfs.common.CredStorage import _TextCredStore
 
 from fuse import FUSE
 from httpfs.client import HttpFsClient
@@ -48,7 +48,10 @@ try:
     with open('./config.yaml', 'r') as file:
         config = yaml.load(file, yaml.Loader)
 
-    credStore = _TextCredStore(config['CredFile'])
+    try:
+        credStore = _TextCredStore(config['CredFile'])
+    except Exception as e:
+        raise RuntimeError("config.yaml is invalid: {}".format(e))
 
     [hostname, port] = args.server.rsplit(':', 1)
     cred = credStore.getCred(hostname, config['User'])

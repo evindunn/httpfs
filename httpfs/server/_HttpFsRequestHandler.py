@@ -13,8 +13,8 @@ from ._Authenticator import _Authenticator
 import logging
 import errno
 
-from httpfs.common._CredModels import _Cred, _CredStore
-from httpfs.common._CredStorage import _TextCredStore
+from httpfs.common.CredModels import Cred, CredStore
+from httpfs.common.CredStorage import _TextCredStore
 
 
 class _HttpFsRequestHandler(_JSONRequestHandler):
@@ -68,7 +68,7 @@ class _HttpFsRequestHandler(_JSONRequestHandler):
                 raise RuntimeError(
                     "Invalid User-Agent header: Client is not an HttpFsClient")
             auth_parts = request_dict["auth"].split('$')
-            if not _HttpFsRequestHandler.authenticator.isCredValid(_Cred(auth_parts["auth"][0], auth_parts["auth"][1], auth_parts["auth"][2])):
+            if not _HttpFsRequestHandler.authenticator.isCredValid(Cred(auth_parts["auth"][0], auth_parts["auth"][1], auth_parts["auth"][2])):
                 raise RuntimeError(
                     "Invalid credentials: Client is not authorized")
 
