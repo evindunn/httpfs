@@ -13,4 +13,4 @@ RUN conda env update -n base -f environment.yml && \
 
 EXPOSE $PORT
 VOLUME $SRV_DIR
-CMD ["bash", "-lc", "python -m httpfs.server $PORT $SRV_DIR"]
+ENTRYPOINT ["bash", "-lc", "python -m httpfs.server $PORT $SRV_DIR"]

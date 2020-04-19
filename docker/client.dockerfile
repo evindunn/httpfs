@@ -17,4 +17,4 @@ RUN conda env update -n base -f environment.yml && \
     pip install -e .
 
 VOLUME $MNT_DIR
-CMD ["bash", "-lc", "python -m httpfs.client $SERVER_HOST:$SERVER_PORT $MNT_DIR"]
+ENTRYPOINT ["bash", "-lc", "python -m httpfs.client $SERVER_HOST:$SERVER_PORT $MNT_DIR"]

@@ -57,7 +57,7 @@ def do_gen_certs():
 
     # Server cert
     server_crt = X509Cert(
-        ca_key,
+        server_key,
         country,
         state,
         locality,

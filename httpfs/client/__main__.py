@@ -23,6 +23,12 @@ parser.add_argument(
     'mount',
     help="The client directory to mount the server filesystem onto"
 )
+parser.add_argument(
+    "--ca-file",
+    dest="ca_file",
+    help="CA certificate file if the server uses HTTPS",
+    default=None
+)
 args = parser.parse_args()
 
 try:
@@ -52,7 +58,7 @@ try:
         exit(1)
     # Mount the filesystem
     FUSE(
-        HttpFsClient(hostname, port, cred),
+        HttpFsClient(hostname, port, ca_file=args.ca_file),
         args.mount,
         foreground=True,
         allow_other=True
