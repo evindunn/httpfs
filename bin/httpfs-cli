@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import socket
 import sys
 
@@ -8,24 +9,33 @@ from httpfs.ssl import RSAKey, X509Cert
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("command", help="HttpFS command")
-    args = parser.parse_args()
-
-    if args.command == "gen-certs":
-        do_gen_certs()
-    else:
-        print("Unknown command", file=sys.stderr)
-        return 1
-    return 0
-
-
-def do_gen_certs():
     ca_key_file = "ca.key"
     ca_crt_file = "ca.crt"
     server_key_file = "server.key"
     server_crt_file = "server.crt"
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", help="HttpFS command")
+    args = parser.parse_args()
+
+    if args.command == "gen-certs":
+        try:
+            do_gen_certs(
+                ca_key_file,
+                ca_crt_file,
+                server_key_file,
+                server_crt_file
+            )
+        except KeyboardInterrupt:
+            return 1
+    else:
+        print("Unknown command", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+def do_gen_certs(ca_key_file, ca_crt_file, server_key_file, server_crt_file):
     country = input("Country: ").strip()
     state = input("State: ").strip()
     locality = input("City/Locality: ").strip()
@@ -34,7 +44,7 @@ def do_gen_certs():
     # CA Key
     ca_key = RSAKey()
     ca_key.write(ca_key_file)
-    print("CA Private key written to {}".format(ca_key_file))
+    print("CA private key written to {}".format(ca_key_file))
 
     # CA cert
     ca_crt = X509Cert(
@@ -48,12 +58,12 @@ def do_gen_certs():
 
     ca_crt.sign(ca_key)
     ca_crt.write(ca_crt_file)
-    print("Server certificate written to {}".format(ca_key_file))
+    print("CA certificate written to {}".format(ca_crt_file))
 
     # Server key
     server_key = RSAKey()
     server_key.write(server_key_file)
-    print("Server key written to {}".format(ca_key_file))
+    print("Server private key written to {}".format(ca_key_file))
 
     # Server cert
     server_crt = X509Cert(

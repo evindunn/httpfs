@@ -20,6 +20,7 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         Constructor
         :param server: The server to connect to
+        :param ca_file: Optional CA cert file if the server uses HTTPS
         """
         # Now we can use ipv6 addr
         self.server_hostname = hostname
