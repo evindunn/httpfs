@@ -1,0 +1,15 @@
+name: LINT
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build environment
+        shell: bash
+        run: conda create -n httpfs -f environment.yml
+
+      - name: PyLint
+        shell: bash
+        run: pylint httpfs/
