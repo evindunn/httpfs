@@ -9,12 +9,12 @@ import time
 from httpfs.common import HttpFsRequest, HttpFsResponse
 from ._JSONRequestHandler import _JSONRequestHandler
 from httpfs.common import HttpFsRequest, HttpFsResponse
-from ._Authenticator import _Authenticator
+from .Authenticator import Authenticator
 import logging
 import errno
 
 from httpfs.common.CredModels import Cred, CredStore
-from httpfs.common.CredStorage import _TextCredStore
+from httpfs.common.CredStorage import TextCredStore
 
 
 class _HttpFsRequestHandler(_JSONRequestHandler):
@@ -44,7 +44,7 @@ class _HttpFsRequestHandler(_JSONRequestHandler):
 
     server_version = "HttpFs/0.1"
     sys_version = ""
-    authenticator = _Authenticator(_TextCredStore())
+    authenticator = Authenticator(TextCredStore())
 
     def log_message(self, format, *args):
         # Allow disable based on log level
@@ -68,13 +68,19 @@ class _HttpFsRequestHandler(_JSONRequestHandler):
                 raise RuntimeError(
                     "Invalid User-Agent header: Client is not an HttpFsClient")
             auth_parts = request_dict["auth"].split('$')
-            if not _HttpFsRequestHandler.authenticator.isCredValid(Cred(auth_parts["auth"][0], auth_parts["auth"][1], auth_parts["auth"][2])):
+            if not _HttpFsRequestHandler.authenticator.isCredValid(
+                    Cred(auth_parts[0], auth_parts[1], auth_parts[2])):
                 raise RuntimeError(
-                    "Invalid credentials: Client is not authorized")
+                    "Invalid credentials: Client is not authorized"
+                )
 
             request = HttpFsRequest.from_dict(request_dict)
             self._delegate_request(request)
-        except ValueError as e:
+        except RuntimeError as e:
+            response = HttpFsResponse(errno.EACCES, {"message": str(e)})
+            self.send_json_response(
+            http.HTTPStatus.UNAUTHORIZED, response.as_dict())
+        except Exception as e:
             response = HttpFsResponse(errno.EIO, {"message": str(e)})
             self.send_json_response(
                 http.HTTPStatus.BAD_REQUEST, response.as_dict())

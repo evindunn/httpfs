@@ -4,7 +4,7 @@ import os
 import sys
 import yaml
 from httpfs.common.CredModels import Cred, CredStore
-from httpfs.common.CredStorage import _TextCredStore
+from httpfs.common.CredStorage import TextCredStore
 
 from fuse import FUSE
 from httpfs.client import HttpFsClient
@@ -49,7 +49,7 @@ try:
         config = yaml.load(file, yaml.Loader)
 
     try:
-        credStore = _TextCredStore(config['CredFile'])
+        credStore = TextCredStore(config['CredFile'])
     except Exception as e:
         raise RuntimeError("config.yaml is invalid: {}".format(e))
 
@@ -61,7 +61,7 @@ try:
         exit(1)
     # Mount the filesystem
     FUSE(
-        HttpFsClient(hostname, port, ca_file=args.ca_file),
+        HttpFsClient(hostname, port, cred, ca_file=args.ca_file),
         args.mount,
         foreground=True,
         allow_other=True

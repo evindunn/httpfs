@@ -5,7 +5,7 @@ from os import chmod
 from typing import Optional
 
 
-class _TextCredStore(CredStore):
+class TextCredStore(CredStore):
     def __init__(self, filePath: str = './creds'):
         self.filePath = filePath
         if not exists(filePath):
@@ -19,7 +19,7 @@ class _TextCredStore(CredStore):
         lock = RLock()
         with lock, open(self.filePath, 'a') as file:
             if not self.hasCred(cred):
-                file.write(cred.str() + '\n')
+                file.write(str(cred) + '\n')
 
     def deleteCred(self, host: str, bearer: str):
         lock = RLock()
@@ -39,8 +39,8 @@ class _TextCredStore(CredStore):
     def getCred(self, host: str, bearer: str) -> Optional[Cred]:
         lock = RLock()
         with lock, open(self.filePath, 'r') as file:
-            for line in file.readline():
-                dbCred = line.split('$')
+            for line in file.readlines():
+                dbCred = [l.strip() for l in line.split('$')]
                 if dbCred[0] == host and dbCred[1] == bearer:
                     return Cred(dbCred[0], dbCred[1], dbCred[2])
         return None
@@ -49,6 +49,6 @@ class _TextCredStore(CredStore):
         lock = RLock()
         with lock, open(self.filePath, 'r') as file:
             for line in file.readline():
-                if line == cred.str():
+                if line == str(cred):
                     return True
         return False

@@ -1,7 +1,7 @@
 from httpfs.common.CredModels import Cred, CredStore
 
 
-class _Authenticator():
+class Authenticator:
     def __init__(self, credStore: CredStore):
         self.credStore = credStore
 

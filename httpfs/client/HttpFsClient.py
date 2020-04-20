@@ -80,6 +80,9 @@ class HttpFsClient(_FuseLogger, Operations):
 
             return HttpFsResponse.from_dict(response.json())
 
+        except requests.exceptions.HTTPError as e:
+            logging.error(e)
+            raise FuseOSError(errno.EACCES)
         except Exception as e:
             logging.error(e)
             raise FuseOSError(errno.EIO)
