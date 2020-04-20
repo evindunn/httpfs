@@ -49,7 +49,7 @@ def main():
             key = CredStore.generate_key()
             cred = Cred(host, bearer, key)
             auth.addValidCred(cred)
-            print(key)
+            print(cred)
         else:
             raise RuntimeError("Invalid input")
     else:
