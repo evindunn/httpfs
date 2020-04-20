@@ -36,5 +36,5 @@ class CredStore(ABC):
 
     @staticmethod
     def generate_key():
-        return hexlify(os.urandom(16)).decode("utf-8")
+        return hexlify(os.urandom(256)).decode("utf-8")
 
