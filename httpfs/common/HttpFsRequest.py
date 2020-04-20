@@ -1,4 +1,4 @@
-from .TextCredStore import Cred
+from .CredModels import Cred
 
 
 class HttpFsRequest:

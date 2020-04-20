@@ -1,40 +1,54 @@
-import os
-from abc import ABC, abstractmethod
-from binascii import hexlify
+from .CredModels import Cred, CredStore
+from threading import RLock
+from os.path import exists
+from os import chmod
+from typing import Optional
 
 
-class Cred:
+class TextCredStore(CredStore):
+    def __init__(self, filePath: str = './creds'):
+        self.filePath = filePath
+        if not exists(filePath):
+            file = open(filePath, 'w')
+            file.close()
+            # Only allow the user on the server to read and write to the keys file
+            chmod(filePath, 0o600)
+        super().__init__()
 
-    def __init__(self, host: str, bearer: str, key: str):
-        self.host = host
-        self.bearer = bearer
-        self.key = key
-
-    def __eq__(self, other):
-        return isinstance(self, Cred) and self.host == other.host and self.bearer == other.bearer and self.key == other.key
-
-    def __str__(self):
-        return '{}${}${}'.format(self.host, self.bearer, self.key)
-
-
-class CredStore(ABC):
-    @abstractmethod
     def storeCred(self, cred: Cred):
-        pass
+        lock = RLock()
+        with lock, open(self.filePath, 'a') as file:
+            if not self.hasCred(cred):
+                file.write(str(cred) + '\n')
 
-    @abstractmethod
     def deleteCred(self, host: str, bearer: str):
-        pass
+        lock = RLock()
+        with lock:
+            lines = []
+            with open(self.filePath, 'r') as file:
+                lines = file.readlines()
+            lines = map(lambda line: line.split('$'), lines)
+            lines = filter(
+                (lambda dbCred: not (
+                    dbCred[0] == host and dbCred[1] == bearer)),
+                lines)
+            lines = map(lambda dbCred: '$'.join(dbCred))
+            with open(self.filePath, 'w') as file:
+                file.writelines(lines)
 
-    @abstractmethod
-    def getCred(self, host: str, bearer: str) -> Cred:
-        pass
+    def getCred(self, host: str, bearer: str) -> Optional[Cred]:
+        lock = RLock()
+        with lock, open(self.filePath, 'r') as file:
+            for line in file.readlines():
+                dbCred = [l.strip() for l in line.split('$')]
+                if dbCred[0] == host and dbCred[1] == bearer:
+                    return Cred(dbCred[0], dbCred[1], dbCred[2])
+        return None
 
-    @abstractmethod
     def hasCred(self, cred: Cred) -> bool:
-        pass
-
-    @staticmethod
-    def generate_key():
-        return hexlify(os.urandom(256)).decode("utf-8")
-
+        lock = RLock()
+        with lock, open(self.filePath, 'r') as file:
+            for line in file.readlines():
+                if line.strip() == str(cred):
+                    return True
+        return False

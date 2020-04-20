@@ -6,8 +6,8 @@ import pathlib
 import socket
 import sys
 
-from httpfs.common.TextCredStore import Cred
-from httpfs.common.CredStorage import TextCredStore
+from httpfs.common.CredModels import Cred
+from httpfs.common.TextCredStore import TextCredStore
 from httpfs.server.Authenticator import Authenticator
 from httpfs.ssl import RSAKey, X509Cert
 from httpfs.common import CredStore

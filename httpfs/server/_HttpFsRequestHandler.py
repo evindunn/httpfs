@@ -7,8 +7,8 @@ import stat
 import time
 
 from httpfs.common import HttpFsRequest, HttpFsResponse
-from httpfs.common.TextCredStore import Cred
-from httpfs.common.CredStorage import TextCredStore
+from httpfs.common.CredModels import Cred
+from httpfs.common.TextCredStore import TextCredStore
 from .Authenticator import Authenticator
 from ._JSONRequestHandler import _JSONRequestHandler
 
