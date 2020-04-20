@@ -1,4 +1,4 @@
-from .CredModels import Cred, CredStore
+from .TextCredStore import Cred, CredStore
 from threading import RLock
 from os.path import exists
 from os import chmod
@@ -48,7 +48,7 @@ class TextCredStore(CredStore):
     def hasCred(self, cred: Cred) -> bool:
         lock = RLock()
         with lock, open(self.filePath, 'r') as file:
-            for line in file.readline():
-                if line == str(cred):
+            for line in file.readlines():
+                if line.strip() == str(cred):
                     return True
         return False

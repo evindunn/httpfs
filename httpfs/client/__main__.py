@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 import yaml
-from httpfs.common.CredModels import Cred, CredStore
+from httpfs.common.TextCredStore import Cred, CredStore
 from httpfs.common.CredStorage import TextCredStore
 
 from fuse import FUSE

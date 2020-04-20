@@ -7,14 +7,10 @@ import stat
 import time
 
 from httpfs.common import HttpFsRequest, HttpFsResponse
-from ._JSONRequestHandler import _JSONRequestHandler
-from httpfs.common import HttpFsRequest, HttpFsResponse
-from .Authenticator import Authenticator
-import logging
-import errno
-
-from httpfs.common.CredModels import Cred, CredStore
+from httpfs.common.TextCredStore import Cred
 from httpfs.common.CredStorage import TextCredStore
+from .Authenticator import Authenticator
+from ._JSONRequestHandler import _JSONRequestHandler
 
 
 class _HttpFsRequestHandler(_JSONRequestHandler):
