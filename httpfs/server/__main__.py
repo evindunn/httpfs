@@ -58,9 +58,10 @@ except Exception as e:
 
 try:
     print("Server running on port {}...".format(args.port))
-    server.serve_forever()
+    server.start()
+    server.wait()
 except KeyboardInterrupt:
-    server.shutdown()
+    server.stop()
 except Exception as e:
     logging.error(e)
-    server.shutdown()
+    server.stop()

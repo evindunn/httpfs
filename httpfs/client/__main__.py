@@ -16,7 +16,7 @@ DATE_FMT = "%Y-%m-%d %H:%M:%S"
 PARSER = argparse.ArgumentParser(prog="httpfs.client")
 PARSER.add_argument(
     "server",
-    help="The hostname an port of the server to connect to"
+    help="The hostname and port of the server to connect to"
 )
 PARSER.add_argument(
     'mount',
@@ -54,11 +54,12 @@ try:
         logging.error("Mount point '%s' does not exist", ARGS.mount)
         sys.exit(1)
 
-    [HOSTNAME, PORT] = ARGS.server.rsplit(':', 1)
+    [HOSTNAME, port] = ARGS.server.rsplit(':', 1)
+    port = int(port)
 
     # Mount the filesystem
     FUSE(
-        HttpFsClient(HOSTNAME, PORT, api_key=ARGS.api_key, ca_file=ARGS.ca_file),
+        HttpFsClient(HOSTNAME, port, api_key=ARGS.api_key, ca_file=ARGS.ca_file),
         ARGS.mount,
         foreground=True,
         allow_other=True

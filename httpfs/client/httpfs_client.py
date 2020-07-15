@@ -7,12 +7,15 @@ Contains a class to be passed to fusepy.FUSE to handle filesystem operations
 import base64
 import binascii
 import errno
+import json
 import logging
 import os
 import time
+import ujson
+import traceback
 
-import requests
 from fuse import Operations, FuseOSError, fuse_get_context
+from pytcp_message import TcpClient
 
 from httpfs.common import HttpFsRequest, HttpFsResponse
 from .fuse_logger import _FuseLogger
@@ -23,35 +26,29 @@ class HttpFsClient(_FuseLogger, Operations):
     A FUSE client that talks to an HttpFs server
     """
 
-    client_version = 0.1
     _ONE_KILOBYTE = 1024
-
-    def __init__(self, hostname, port, api_key=None, ca_file=None):
-        """
-        Constructor
-        :param server: The server to connect to
-        :param ca_file: Optional CA cert file if the server uses HTTPS
-        """
-        # Now we can use ipv6 addr
-        self.server_hostname = hostname
-        self._server_url = "http"
-        if ca_file is not None and os.path.exists(ca_file):
-            os.environ["REQUESTS_CA_BUNDLE"] = ca_file
-            self._server_url += "s"
-        self._server_url += "://{}:{}".format(hostname, port)
-        self._http_keepalive_session = requests.Session()
-        self._http_keepalive_session.headers.update({
-            "Accept": "application/json",
-            "Accept-Encoding": "identity",
-            "User-Agent": "HttpFsClient/{}".format(HttpFsClient.client_version),
-            "Host": self.server_hostname
-        })
-        self._api_key = api_key
 
     # Unimplemented filesystem ops
     bmap = None
     getxattr = None
     listxattr = None
+
+    def __init__(self, hostname, port, api_key=None, ca_file=None):
+        """
+        Constructor
+        :param hostname: The server to connect to
+        :param port: The server's port
+        :param api_key: Key to use for authentication
+        :param ca_file: Optional CA cert file if the server uses HTTPS
+        """
+        self._tcp_client = TcpClient((hostname, port))
+        self._api_key = api_key
+
+    def __del__(self):
+        try:
+            self._tcp_client.stop()
+        except:
+            pass
 
     def _send_request(self, request_type, **kwargs):
         """
@@ -66,40 +63,23 @@ class HttpFsClient(_FuseLogger, Operations):
         )
 
         try:
-            headers = dict()
-            if self._api_key is not None:
-                headers["Authorization"] = self._api_key
+            try:
+                self._tcp_client.send(ujson.dumps(request.as_dict()))
+                response = self._tcp_client.receive()
+                return HttpFsResponse.from_dict(ujson.loads(response))
 
-            response = self._http_keepalive_session.post(
-                self._server_url,
-                json=request.as_dict(),
-                allow_redirects=False,
-                timeout=10,
-                headers=headers,
-                stream=True
-            )
+            # TODO: More descriptive errno's based on error received
+            except BrokenPipeError as excp:
+                raise FuseOSError(errno.ECONNRESET) from excp
+            except json.JSONDecodeError as excp:
+                raise FuseOSError(errno.EINVAL) from excp
+            except Exception as excp:
+                traceback.print_tb(excp.__traceback__)
+                raise FuseOSError(errno.EIO) from excp
 
-            response.raise_for_status()
-
-            # Minimal server response validation
-            is_json = response.headers.get("Content-Type").startswith(
-                "application/json"
-            )
-            is_httpfs_server = response.headers.get("Server").startswith(
-                "HttpFs"
-            )
-            if not is_json or not is_httpfs_server:
-                logging.error("Server response didn't come from HttpFs")
-                raise FuseOSError(errno.EIO)
-
-            return HttpFsResponse.from_dict(response.json())
-
-        except requests.exceptions.HTTPError as http_error:
-            logging.error(http_error)
-            raise FuseOSError(errno.EACCES)
-        except Exception as exception:
+        except FuseOSError as exception:
             logging.error(exception)
-            raise FuseOSError(errno.EIO)
+            raise FuseOSError(exception.errno) from exception
 
     def access(self, path, mode):
         """

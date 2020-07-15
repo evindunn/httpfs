@@ -8,5 +8,5 @@ setup(
     author='httpfs',
     license='GPL-3.0-or-later',
     packages=['httpfs'],
-    zip_safe=False
+    zip_safe=False, install_requires=['ujson', 'fusepy>=3.0.1', 'pytcp-message']
 )

@@ -7,10 +7,9 @@ import stat
 import time
 
 from httpfs.common import HttpFsRequest, HttpFsResponse
-from ._JSONRequestHandler import _JSONRequestHandler
 
 
-class _HttpFsRequestHandler(_JSONRequestHandler):
+class _HttpFsRequestHandler:
     STAT_FS_KEYS = [
         'f_bavail',
         'f_bfree',
@@ -38,10 +37,13 @@ class _HttpFsRequestHandler(_JSONRequestHandler):
     server_version = "HttpFs/0.1"
     sys_version = ""
 
+    def __init__(self, server_instance):
+        self.server = server_instance
+
     def log_message(self, format, *args):
         # Allow disable based on log level
         if logging.getLogger().getEffectiveLevel() <= logging.INFO:
-            super().log_message(format, *args)
+            logging.getLogger("httpfs").log_message(format, *args)
 
     def get_abs_path(self, client_path):
         client_path = client_path.lstrip("/")
@@ -55,33 +57,13 @@ class _HttpFsRequestHandler(_JSONRequestHandler):
         Called when a valid JSON request has been sent from a client
         :param request_dict: JSON request converted to dict object
         """
-        cred_store = self.server.get_cred_store()
-        auth_enabled = cred_store is not None
-        has_auth_header = auth_enabled and "Authorization" in self.headers
-        is_authorized = not auth_enabled or (
-            has_auth_header and cred_store.has_cred(
-                self.headers["Authorization"]
-            )
-        )
-
-        if "User-Agent" not in self.headers or not self.headers["User-Agent"].startswith("HttpFsClient"):
-            raise RuntimeError(
-                "Invalid User-Agent header: Client is not an HttpFsClient"
-            )
-        if not is_authorized:
-            logging.error("{} is not authorized".format(self.client_address[0]))
-            response = HttpFsResponse(errno.EACCES, {"message": "Invalid API key"})
+        try:
+            request = HttpFsRequest.from_dict(request_dict)
+            self._delegate_request(request)
+        except Exception as e:
+            response = HttpFsResponse(errno.EIO, {"message": str(e)})
             self.send_json_response(
-                http.HTTPStatus.UNAUTHORIZED, response.as_dict()
-            )
-        else:
-            try:
-                request = HttpFsRequest.from_dict(request_dict)
-                self._delegate_request(request)
-            except Exception as e:
-                response = HttpFsResponse(errno.EIO, {"message": str(e)})
-                self.send_json_response(
-                    http.HTTPStatus.BAD_REQUEST, response.as_dict())
+                http.HTTPStatus.BAD_REQUEST, response.as_dict())
 
     def _delegate_request(self, httpFsRequest):
         """

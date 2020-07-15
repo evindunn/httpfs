@@ -1,33 +1,15 @@
+from enum import Enum, auto, unique
+
+from httpfs.common._fuse_ops import FuseOpType
+
+
 class HttpFsRequest:
     """
     Class representing a filesystem operation with JSON
     serialization/deserialization methods
     """
-    OP_ACCESS = 0
-    OP_CREATE = 1
-    OP_FLUSH = 2
-    OP_FSYNC = 3
-    OP_GET_ATTR = 4
-    OP_LINK = 5
-    OP_MKDIR = 6
-    OP_MKNOD = 7
-    OP_OPEN = 8
-    OP_READ = 9
-    OP_READDIR = 10
-    OP_READLINK = 11
-    OP_RELEASE = 12
-    OP_RENAME = 13
-    OP_RM_DIR = 14
-    OP_STAT_FS = 15
-    OP_SYMLINK = 16
-    OP_TRUNCATE = 17
-    OP_UNLINK = 18
-    OP_UTIMENS = 19
-    OP_WRITE = 20
-    OP_CHOWN = 21
-    OP_CHMOD = 22
 
-    def __init__(self, op_type, args_dict, api_key=None):
+    def __init__(self, op_type: FuseOpType, args_dict, api_key=None):
         """
         Class cooresponding to the schema
         https://raw.githubusercontent.com/httpfs/httpfs/master/HttpFsRequest.schema.json
