@@ -27,7 +27,7 @@ class GetAttrOp(FuseOp):
             for k in GetAttrOp.GETATTR_KEYS:
                 attrs[k] = getattr(os_attrs, k)
 
-            result["attrs"] = attrs
+            result.data = attrs
 
         except FileNotFoundError:
             logging.warning("{} not found".format(path))

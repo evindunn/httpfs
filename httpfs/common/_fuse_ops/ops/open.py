@@ -67,8 +67,7 @@ class OpenOp(FuseOp):
 
         try:
             if access_ok:
-                fd = os.open(path, flags)
-                result["file_descriptor"] = fd
+                result.data = os.open(path, flags)
             else:
                 result.errno = errno.EACCES
                 result.data = "Access denied"

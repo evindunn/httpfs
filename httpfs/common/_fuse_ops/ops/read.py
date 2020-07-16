@@ -1,3 +1,4 @@
+import base64
 import os
 import logging
 import errno
@@ -33,7 +34,9 @@ class ReadOp(FuseOp):
         try:
             if access_ok:
                 os.lseek(file_descriptor, offset, os.SEEK_SET)
-                result.data = os.read(file_descriptor, size)
+                result.data = base64.standard_b64encode(
+                    os.read(file_descriptor, size)
+                ).decode("utf-8")
             else:
                 logging.warning("Error during read request: Access denied")
                 result.errno = errno.EACCES

@@ -7,7 +7,7 @@ from .. import FuseOp, FuseOpResult
 
 class CreateOp(FuseOp):
     def handle(self, *args, **kwargs):
-        response = FuseOpResult({"type": FuseOpType.CREATE})
+        response = FuseOpResult()
         path = kwargs["path"]
         uid = kwargs["uid"]
         gid = kwargs["gid"]
@@ -34,7 +34,7 @@ class CreateOp(FuseOp):
                     mode=mode
                 )
                 os.chown(path, uid, gid)
-                response["file_descriptor"] = fd
+                response.data = fd
             else:
                 logging.warning("Error during create request: Access denied")
                 response.errno = errno.EACCES

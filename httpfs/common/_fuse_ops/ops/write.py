@@ -1,3 +1,4 @@
+import base64
 import errno
 import logging
 import os
@@ -14,7 +15,7 @@ class WriteOp(FuseOp):
         result = FuseOpResult()
 
         file_descriptor = kwargs["file_descriptor"]
-        data = kwargs["data"]
+        data = base64.standard_b64decode(kwargs["data"])
         offset = kwargs["offset"]
 
         uid = kwargs["uid"]

@@ -8,7 +8,6 @@ from .. import FuseOp, FuseOpResult
 class ChmodOp(FuseOp):
     def handle(self, *args, **kwargs) -> FuseOpResult:
         result = FuseOpResult()
-        client = kwargs["client"]
         path = kwargs["path"]
         uid = kwargs["uid"]
         gid = kwargs["gid"]
@@ -30,7 +29,6 @@ class ChmodOp(FuseOp):
         try:
             if access_ok:
                 os.chmod(path, mode)
-                logging.debug("Successful chmod for {}".format(client))
             else:
                 logging.warning("Error during chmod request: Access denied")
                 result.errno = errno.EACCES

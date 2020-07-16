@@ -3,10 +3,12 @@ import socket
 import threading
 import ssl
 import logging
+from datetime import datetime
+
 import ujson
 from pytcp_message import TcpServer
 
-from ._httpfs_request_handler import _HttpFsRequestHandler
+from ..common import FuseOpFactory, FuseOpType
 from ..common.credentials.TextCredStore import TextCredStore
 
 
@@ -29,6 +31,7 @@ class HttpFsServer(TcpServer):
         :param tls_cert: Optional cert file for HTTPS
         """
         super().__init__(port, address="0.0.0.0")
+        self._client_timeout = 300
 
         # has_tls_key = tls_key is not None and os.path.exists(tls_key)
         # has_tls_crt = tls_cert is not None and os.path.exists(tls_cert)
@@ -78,9 +81,10 @@ class HttpFsServer(TcpServer):
         self.add_request_handler(
             lambda req, res: HttpFsServer._add_server(self, req, res)
         )
-        self.add_request_handler(HttpFsServer._log_request)
         self.add_request_handler(HttpFsServer._json_parse)
-        self.add_request_handler(HttpFsServer._delegate_response)
+        self.add_request_handler(HttpFsServer._log_request)
+        self.add_request_handler(HttpFsServer._serve_response)
+        self.add_request_handler(HttpFsServer._log_response)
 
     def get_fs_root(self):
         return self._fs_root
@@ -95,18 +99,51 @@ class HttpFsServer(TcpServer):
     @staticmethod
     def _add_server(server, req, _):
         req.server = server
-
-    @staticmethod
-    def _log_request(req, _):
-        logging.getLogger().debug("{}:{}".format(*req.get_client_address()))
         return True
 
     @staticmethod
     def _json_parse(req, _):
-        req.set_content(ujson.loads(req.get_content().decode("utf-8")))
+        as_dict = ujson.loads(req.get_content().decode("utf-8"))
+
+        # Resolve path based on FS root
+        if "path" in as_dict.keys():
+            new_path = os.path.join(
+                req.server.get_fs_root(),
+                as_dict["path"].lstrip("/")
+            )
+            as_dict["path"] = new_path
+
+        req.content_json = as_dict
         return True
 
     @staticmethod
-    def _delegate_response(req, res):
-        res.set_content("MESSAGE RECEIVED".encode("utf-8"))
+    def _log_request(req, _):
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        logging.getLogger().debug(
+            "[{}] <-- {}:{} {}".format(
+                ts,
+                *req.get_client_address(),
+                FuseOpType(req.content_json["type"]).name
+            )
+        )
+        return True
+
+    @staticmethod
+    def _serve_response(req, res):
+        req_content = req.content_json
+        handler = FuseOpFactory.get_op_handler(req_content["type"])
+        result_json = handler.handle(**req_content).to_json()
+        res.set_content(result_json.encode("utf-8"))
+        return True
+
+    @staticmethod
+    def _log_response(req, _):
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        logging.getLogger().debug(
+            "[{}] --> {}:{} {}".format(
+                ts,
+                *req.get_client_address(),
+                FuseOpType(req.content_json["type"]).name
+            ),
+        )
         return True

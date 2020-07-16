@@ -9,16 +9,15 @@ import binascii
 import errno
 import json
 import logging
-import os
 import time
-import ujson
 import traceback
 
+import ujson
 from fuse import Operations, FuseOSError, fuse_get_context
 from pytcp_message import TcpClient
 
-from httpfs.common import HttpFsRequest, HttpFsResponse
 from .fuse_logger import _FuseLogger
+from ..common import FuseOpType
 
 
 class HttpFsClient(_FuseLogger, Operations):
@@ -27,6 +26,7 @@ class HttpFsClient(_FuseLogger, Operations):
     """
 
     _ONE_KILOBYTE = 1024
+    _RETRIES = 3
 
     # Unimplemented filesystem ops
     bmap = None
@@ -41,8 +41,10 @@ class HttpFsClient(_FuseLogger, Operations):
         :param api_key: Key to use for authentication
         :param ca_file: Optional CA cert file if the server uses HTTPS
         """
-        self._tcp_client = TcpClient((hostname, port))
+        self._server_addr = (hostname, port)
+        self._tcp_client = TcpClient(self._server_addr)
         self._api_key = api_key
+        self._retries = HttpFsClient._RETRIES
 
     def __del__(self):
         try:
@@ -50,36 +52,51 @@ class HttpFsClient(_FuseLogger, Operations):
         except:
             pass
 
-    def _send_request(self, request_type, **kwargs):
+    def _send_request(self, request_type: FuseOpType, **kwargs):
         """
         Sends an HttpFsRequest of the given type with the given kwargs
         :param request_type: The request type to send
         :param kwargs: The arguments for the request
         :return: The HttpFsResponse
         """
-        request = HttpFsRequest(
-            request_type,
-            kwargs
-        )
+        request = {
+            "type": request_type,
+            "api_key": self._api_key,
+            **kwargs
+        }
 
         try:
             try:
-                self._tcp_client.send(ujson.dumps(request.as_dict()))
+                req_as_json = ujson.dumps(request)
+                # Don't want to log all the bytes
+                if request_type not in [FuseOpType.READ, FuseOpType.WRITE]:
+                    logging.debug(req_as_json)
+                self._tcp_client.send(req_as_json)
+
                 response = self._tcp_client.receive()
-                return HttpFsResponse.from_dict(ujson.loads(response))
+                return ujson.loads(response)
 
             # TODO: More descriptive errno's based on error received
             except BrokenPipeError as excp:
-                raise FuseOSError(errno.ECONNRESET) from excp
+                logging.error("Server disconnected: {}".format(excp))
+                self._tcp_client = TcpClient(self._server_addr)
+                if self._retries > 0:
+                    self._retries -= 1
+                    return self._send_request(request_type, **kwargs)
             except json.JSONDecodeError as excp:
                 raise FuseOSError(errno.EINVAL) from excp
+            except OSError as excp:
+                raise FuseOSError(excp.errno) from excp
             except Exception as excp:
-                traceback.print_tb(excp.__traceback__)
                 raise FuseOSError(errno.EIO) from excp
 
         except FuseOSError as exception:
-            logging.error(exception)
+            if exception.errno != errno.ECONNRESET:
+                self._retries = HttpFsClient._RETRIES
+            logging.debug(traceback.format_exc())
             raise FuseOSError(exception.errno) from exception
+
+        self._retries = HttpFsClient._RETRIES
 
     def access(self, path, mode):
         """
@@ -90,13 +107,15 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         uid, gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_ACCESS,
+            FuseOpType.ACCESS,
             path=path,
             mode=mode,
             uid=uid,
             gid=gid
         )
-        if response_obj.is_error():
+        # Access returns a boolean in it's "data" field: whether the user has
+        # access
+        if response_obj["errno"] != 0 or not response_obj["data"]:
             raise FuseOSError(errno.EACCES)
 
     def create(self, path, mode, fh=None):
@@ -112,18 +131,18 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         uid, gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_CREATE,
+            FuseOpType.CREATE,
             path=path,
             mode=mode,
             uid=uid,
             gid=gid
         )
 
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
-        return response_obj.get_data()["file_descriptor"]
+        return response_obj["data"]
 
     def chmod(self, path, mode):
         """
@@ -133,16 +152,16 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         uid, gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_CHMOD,
+            FuseOpType.CHMOD,
             path=path,
             mode=mode,
             uid=uid,
             gid=gid
         )
 
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def chown(self, path, uid, gid):
         """
@@ -153,7 +172,7 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         caller_uid, caller_gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_CHOWN,
+            FuseOpType.CHOWN,
             path=path,
             uid=uid,
             gid=gid,
@@ -161,9 +180,9 @@ class HttpFsClient(_FuseLogger, Operations):
             caller_gid=caller_gid
         )
 
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def flush(self, path, fh=None):
         """
@@ -176,13 +195,13 @@ class HttpFsClient(_FuseLogger, Operations):
         :return:
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_FLUSH,
+            FuseOpType.FLUSH,
             file_descriptor=fh
         )
 
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def fsync(self, path, datasync=False, fh=None):
         """
@@ -195,14 +214,14 @@ class HttpFsClient(_FuseLogger, Operations):
         :return:
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_FSYNC,
+            FuseOpType.FSYNC,
             file_descriptor=fh,
             datasync=datasync
         )
 
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def getattr(self, path, fh=None):
         """
@@ -211,11 +230,11 @@ class HttpFsClient(_FuseLogger, Operations):
         :param fh: None if the current file isn't open
         :return:
         """
-        response_obj = self._send_request(HttpFsRequest.OP_GET_ATTR, path=path)
-        if response_obj.get_error_no() == 0:
-            return response_obj.get_data()
+        response_obj = self._send_request(FuseOpType.GET_ATTR, path=path)
+        if response_obj["errno"] == 0:
+            return response_obj["data"]
 
-        raise FuseOSError(response_obj.get_error_no())
+        raise FuseOSError(response_obj["errno"])
 
     def link(self, target, source):
         """
@@ -225,10 +244,13 @@ class HttpFsClient(_FuseLogger, Operations):
         :return:
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_LINK, target=target, source=source)
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+            FuseOpType.LINK,
+            target=target,
+            source=source
+        )
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def mkdir(self, path, mode):
         """
@@ -238,10 +260,13 @@ class HttpFsClient(_FuseLogger, Operations):
         :return:
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_MKDIR, path=path, mode=mode)
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+            FuseOpType.MKDIR,
+            path=path,
+            mode=mode
+        )
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def mknod(self, path, mode, dev):
         """
@@ -255,10 +280,14 @@ class HttpFsClient(_FuseLogger, Operations):
         :return:
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_MKNOD, path=path, mode=mode, dev=dev)
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+            FuseOpType.MKNOD,
+            path=path,
+            mode=mode,
+            device=dev
+        )
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def open(self, path, flags):
         """
@@ -269,18 +298,18 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         uid, gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_OPEN,
+            FuseOpType.OPEN,
             path=path,
             flags=flags,
             uid=uid,
             gid=gid
         )
 
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
-        return response_obj.get_data()["file_descriptor"]
+        return response_obj["data"]
 
     def read(self, path, size, offset, fh=None):
         """
@@ -294,7 +323,7 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         uid, gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_READ,
+            FuseOpType.READ,
             file_descriptor=fh,
             size=size,
             offset=offset,
@@ -302,16 +331,16 @@ class HttpFsClient(_FuseLogger, Operations):
             gid=gid
         )
 
-        if response_obj.is_error():
+        if response_obj["errno"] != 0:
             logging.error(
                 "Read failed for %s: '%s'",
-                response_obj.get_data()["message"],
+                response_obj["data"],
                 path
             )
-            raise FuseOSError(response_obj.get_error_no())
+            raise FuseOSError(response_obj["errno"])
 
         try:
-            return base64.standard_b64decode(response_obj.get_data()["bytes_read"])
+            return base64.standard_b64decode(response_obj["data"])
         except binascii.Error as encoding_error:
             logging.error("Error decoding read data: '%s'", encoding_error)
             raise FuseOSError(errno.EIO)
@@ -325,15 +354,15 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         uid, gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_READDIR,
+            FuseOpType.READDIR,
             path=path,
             uid=uid,
             gid=gid
         )
-        if response_obj.get_error_no() == 0:
-            return response_obj.get_data()["dir_listing"]
+        if response_obj["errno"] == 0:
+            return response_obj["data"]
 
-        raise FuseOSError(response_obj.get_error_no())
+        raise FuseOSError(response_obj["errno"])
 
     def readlink(self, link):
         """
@@ -342,11 +371,13 @@ class HttpFsClient(_FuseLogger, Operations):
         :return: Path to file that link points at
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_READLINK, link_path=link)
-        if response_obj.get_error_no() == 0:
-            return response_obj.get_data()["target"]
+            FuseOpType.READLINK,
+            link_path=link
+        )
+        if response_obj["errno"] == 0:
+            return response_obj["data"]
 
-        raise FuseOSError(response_obj.get_error_no())
+        raise FuseOSError(response_obj["errno"])
 
     def release(self, path, fh=None):
         """
@@ -356,10 +387,12 @@ class HttpFsClient(_FuseLogger, Operations):
         :return:
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_RELEASE, file_descriptor=fh)
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+            FuseOpType.RELEASE,
+            file_descriptor=fh
+        )
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def rename(self, old, new):
         """
@@ -370,15 +403,15 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         uid, gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_RENAME,
+            FuseOpType.RENAME,
             old_path=old,
             new_path=new,
             uid=uid,
             gid=gid
         )
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def rmdir(self, path, *args, dir_fh=None):
         """
@@ -389,12 +422,12 @@ class HttpFsClient(_FuseLogger, Operations):
         :return:
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_RM_DIR,
+            FuseOpType.RM_DIR,
             path=path
         )
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def statfs(self, path):
         """
@@ -402,12 +435,12 @@ class HttpFsClient(_FuseLogger, Operations):
         :param path: Path to the filesystem
         :return:
         """
-        response_obj = self._send_request(HttpFsRequest.OP_STAT_FS, path=path)
+        response_obj = self._send_request(FuseOpType.STAT_FS, path=path)
 
-        if response_obj.get_error_no() == 0:
-            return response_obj.get_data()
+        if response_obj["errno"] == 0:
+            return response_obj["data"]
 
-        raise FuseOSError(response_obj.get_error_no())
+        raise FuseOSError(response_obj["errno"])
 
     def symlink(self, target, source):
         """
@@ -417,13 +450,13 @@ class HttpFsClient(_FuseLogger, Operations):
         :return:
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_SYMLINK,
+            FuseOpType.SYMLINK,
             target=target,
             source=source
         )
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def truncate(self, path, length, fh=None):
         """
@@ -434,13 +467,13 @@ class HttpFsClient(_FuseLogger, Operations):
         :return:
         """
         response_obj = self._send_request(
-            HttpFsRequest.OP_TRUNCATE,
+            FuseOpType.TRUNCATE,
             path=path,
             length=length
         )
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def unlink(self, path, *args, dir_fh=None):
         """
@@ -452,14 +485,14 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         uid, gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_UNLINK,
+            FuseOpType.UNLINK,
             path=path,
             uid=uid,
             gid=gid
         )
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def utimens(self, path, times=None):
         """
@@ -478,15 +511,15 @@ class HttpFsClient(_FuseLogger, Operations):
         """
         uid, gid, _ = fuse_get_context()
         response_obj = self._send_request(
-            HttpFsRequest.OP_UTIMENS,
+            FuseOpType.UTIMENS,
             path=path,
             times=times,
             uid=uid,
             gid=gid
         )
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            raise FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            raise FuseOSError(response_obj["errno"])
 
     def write(self, path, data, offset, fh=None):
         """
@@ -501,7 +534,7 @@ class HttpFsClient(_FuseLogger, Operations):
         uid, gid, _ = fuse_get_context()
 
         response_obj = self._send_request(
-            HttpFsRequest.OP_WRITE,
+            FuseOpType.WRITE,
             file_descriptor=fh,
             data=base64.standard_b64encode(data).decode("utf-8"),
             offset=offset,
@@ -509,11 +542,11 @@ class HttpFsClient(_FuseLogger, Operations):
             gid=gid
         )
 
-        if response_obj.is_error():
-            logging.error(response_obj.get_data()["message"])
-            return FuseOSError(response_obj.get_error_no())
+        if response_obj["errno"] != 0:
+            logging.error(response_obj["data"])
+            return FuseOSError(response_obj["errno"])
 
-        bytes_written = response_obj.get_data()["bytes_written"]
+        bytes_written = response_obj["data"]
         elapsed_time = time.time() - start_time
 
         # Print 1/10 of the time

@@ -1,10 +1,11 @@
-import json
-from enum import auto, Enum, unique
+from enum import auto, IntEnum, unique
 from abc import ABC, abstractmethod
+
+import ujson
 
 
 @unique
-class FuseOpType(Enum):
+class FuseOpType(IntEnum):
     ACCESS = auto()
     CREATE = auto()
     FLUSH = auto()
@@ -31,16 +32,29 @@ class FuseOpType(Enum):
 
 
 class FuseOpResult:
-    def __init__(self, errno=0, data=None):
+    ERR_NONE = 0
+
+    def __init__(self, errno=ERR_NONE, data=""):
         self.errno = errno
         self.data = data
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, val):
+        if val is not None:
+            self._data = val
+        else:
+            self._data = ""
 
     def __iter__(self):
         for k in ["errno", "data"]:
             yield k, getattr(self, k)
 
     def to_json(self):
-        return json.dumps(dict(self))
+        return ujson.dumps(dict(self))
 
 
 class FuseOp(ABC):

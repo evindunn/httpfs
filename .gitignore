@@ -147,3 +147,7 @@ config.yaml
 
 # API keys
 *.json
+
+# Test directories
+server/
+client/

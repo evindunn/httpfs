@@ -30,7 +30,7 @@ class ReadDirOp(FuseOp):
         if access_ok:
             dir_listing = os.listdir(path)
             dir_listing = [".", ".."] + dir_listing
-            result["data"] = dir_listing
+            result.data = dir_listing
         else:
             logging.warning("Error during readdir request: Access denied")
             result.errno = errno.EACCES
