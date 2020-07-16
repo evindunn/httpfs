@@ -17,12 +17,6 @@ class HttpFsServer(TcpServer):
     Server that implements the HttpFsRequestHandler methods
     """
 
-    # TCP keepAlive activates after 1 second of idle connection,
-    # sends a ping every 3 seconds, and closes after 1 failed ping
-    _tcp_keepidle_secs = 1
-    _tcp_keep_interval_secs = 3
-    _tcp_keep_max_fails = 1
-
     def __init__(self, port, fs_root, cred_store_file=None, tls_key=None, tls_cert=None):
         """
         :param port: Port to run the server on
@@ -32,6 +26,7 @@ class HttpFsServer(TcpServer):
         """
         super().__init__(port, address="0.0.0.0")
         self._client_timeout = 300
+        self._fs_root = os.path.realpath(fs_root)
 
         # has_tls_key = tls_key is not None and os.path.exists(tls_key)
         # has_tls_crt = tls_cert is not None and os.path.exists(tls_cert)
@@ -43,34 +38,15 @@ class HttpFsServer(TcpServer):
         #         server_side=True
         #     )
         #
-        self._fs_root = os.path.realpath(fs_root)
-        self._fs_lock = threading.Lock()
         #
         # if cred_store_file is not None:
         #     self._cred_store = TextCredStore(cred_store_file)
         # else:
         #     self._cred_store = None
         #
-        # # This line fixes the HTTP/1.1 keep-alive delay
-        # self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        #
-        # # These options configure TCP keep-alive, which is different
-        # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        # self.socket.setsockopt(
-        #     socket.IPPROTO_TCP,
-        #     socket.TCP_KEEPIDLE,
-        #     HttpFsServer._tcp_keepidle_secs
-        # )
-        # self.socket.setsockopt(
-        #     socket.IPPROTO_TCP,
-        #     socket.TCP_KEEPINTVL,
-        #     HttpFsServer._tcp_keep_interval_secs
-        # )
-        # self.socket.setsockopt(
-        #     socket.IPPROTO_TCP,
-        #     socket.TCP_KEEPCNT,
-        #     HttpFsServer._tcp_keep_max_fails
-        # )
+
+        # This line fixes TCP keep-alive delay
+        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
         if not os.path.exists(self._fs_root):
             raise RuntimeError(

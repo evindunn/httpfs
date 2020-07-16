@@ -9,6 +9,7 @@ import binascii
 import errno
 import json
 import logging
+import socket
 import time
 import traceback
 
@@ -45,6 +46,11 @@ class HttpFsClient(_FuseLogger, Operations):
         self._tcp_client = TcpClient(self._server_addr)
         self._api_key = api_key
         self._retries = HttpFsClient._RETRIES
+        self._tcp_client._socket.setsockopt(
+            socket.IPPROTO_TCP,
+            socket.TCP_NODELAY,
+            1
+        )
 
     def __del__(self):
         try:
