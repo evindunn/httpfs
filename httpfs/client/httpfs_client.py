@@ -78,11 +78,19 @@ class HttpFsClient(_FuseLogger, Operations):
 
             # TODO: More descriptive errno's based on error received
             except BrokenPipeError as excp:
-                logging.error("Server disconnected: {}".format(excp))
-                self._tcp_client = TcpClient(self._server_addr)
                 if self._retries > 0:
                     self._retries -= 1
+                    logging.warning(
+                        "Server disconnected: {}, retrying...".format(excp)
+                    )
+                    self._tcp_client = TcpClient(self._server_addr)
                     return self._send_request(request_type, **kwargs)
+                else:
+                    logging.error(
+                        "Server disconnected. Giving up after {} tries".format(
+                            HttpFsClient._RETRIES
+                        )
+                    )
             except json.JSONDecodeError as excp:
                 raise FuseOSError(errno.EINVAL) from excp
             except OSError as excp:
