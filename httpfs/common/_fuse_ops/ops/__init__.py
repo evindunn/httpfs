@@ -15,3 +15,9 @@ from .readlink import ReadLinkOp
 from .release import ReleaseOp
 from .rename import RenameOp
 from .rmdir import RmDirOp
+from .statfs import StatFsOp
+from .symlink import SymlinkOp
+from .truncate import TruncateOp
+from .unlink import UnlinkOp
+from .utimens import UtimeNsOp
+from .write import WriteOp

@@ -47,3 +47,5 @@ class FuseOp(ABC):
     @abstractmethod
     def handle(self, *args, **kwargs) -> FuseOpResult:
         pass
+
+# TODO: Write a check_permissions(uid, gid, mode) helper

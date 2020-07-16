@@ -1,6 +1,6 @@
 from enum import Enum, auto, unique
 
-from httpfs.common._fuse_ops import FuseOpType
+from ._fuse_ops import FuseOpType
 
 
 class HttpFsRequest:
@@ -11,7 +11,7 @@ class HttpFsRequest:
 
     def __init__(self, op_type: FuseOpType, args_dict, api_key=None):
         """
-        Class cooresponding to the schema
+        Class corresponding to the schema
         https://raw.githubusercontent.com/httpfs/httpfs/master/HttpFsRequest.schema.json
         :param op_type: One of the operation types above
         :param args_dict: Arguments for the operation

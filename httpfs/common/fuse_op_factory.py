@@ -19,7 +19,13 @@ class FuseOpFactory:
         FuseOpType.READDIR: ReadDirOp,
         FuseOpType.RELEASE: ReleaseOp,
         FuseOpType.RENAME: RenameOp,
-        FuseOpType.RM_DIR: RmDirOp
+        FuseOpType.RM_DIR: RmDirOp,
+        FuseOpType.STAT_FS: StatFsOp,
+        FuseOpType.SYMLINK: SymlinkOp,
+        FuseOpType.TRUNCATE: TruncateOp,
+        FuseOpType.UNLINK: UnlinkOp,
+        FuseOpType.UTIMENS: UtimeNsOp,
+        FuseOpType.WRITE: WriteOp
     }
 
     @staticmethod
