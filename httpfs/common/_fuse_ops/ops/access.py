@@ -1,10 +1,13 @@
 import os
 import stat
-from .common import FuseOp, FuseOpType, FuseOpResult
+
+from .. import FuseOp, FuseOpResult
 
 
 class AccessOp(FuseOp):
     def handle(self, *args, **kwargs):
+        result = FuseOpResult()
+
         path = kwargs["path"]
         mode = kwargs["mode"]
         uid = kwargs["uid"]
@@ -58,7 +61,5 @@ class AccessOp(FuseOp):
             if execute_requested:
                 access_ok = access_ok and world_executable
 
-        return FuseOpResult({
-            "type": FuseOpType.ACCESS,
-            "result": access_ok
-        })
+        result.data = access_ok
+        return result

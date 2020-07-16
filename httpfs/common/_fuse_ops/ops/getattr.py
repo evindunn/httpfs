@@ -1,7 +1,7 @@
 import os
 import logging
 import errno
-from .common import FuseOp, FuseOpResult
+from .. import FuseOp, FuseOpResult
 
 
 class GetAttrOp(FuseOp):
@@ -31,6 +31,6 @@ class GetAttrOp(FuseOp):
 
         except FileNotFoundError:
             logging.warning("{} not found".format(path))
-            result["errno"] = errno.ENOENT
+            result.errno = errno.ENOENT
 
         return result

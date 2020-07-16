@@ -30,13 +30,17 @@ class FuseOpType(Enum):
     CHMOD = auto()
 
 
-class FuseOpResult(dict):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self["errno"] = 0
+class FuseOpResult:
+    def __init__(self, errno=0, data=None):
+        self.errno = errno
+        self.data = data
+
+    def __iter__(self):
+        for k in ["errno", "data"]:
+            yield k, getattr(self, k)
 
     def to_json(self):
-        return json.dumps(self)
+        return json.dumps(dict(self))
 
 
 class FuseOp(ABC):

@@ -1,12 +1,5 @@
-from .common import FuseOpType
-from .access import AccessOp
-from .create import CreateOp
-from .chmod import ChmodOp
-from .chown import ChownOp
-from .flush import FlushOp
-from .fsync import FsyncOp
-from .getattr import GetAttrOp
-from .link import LinkOp
+from ._fuse_ops.common import FuseOpType
+from ._fuse_ops.ops import *
 
 
 class FuseOpFactory:
@@ -18,7 +11,15 @@ class FuseOpFactory:
         FuseOpType.FLUSH: FlushOp,
         FuseOpType.FSYNC: FsyncOp,
         FuseOpType.GET_ATTR: GetAttrOp,
-        FuseOpType.LINK: LinkOp
+        FuseOpType.LINK: LinkOp,
+        FuseOpType.MKDIR: MkDirOp,
+        FuseOpType.MKNOD: MkNodOp,
+        FuseOpType.OPEN: OpenOp,
+        FuseOpType.READ: ReadOp,
+        FuseOpType.READDIR: ReadDirOp,
+        FuseOpType.RELEASE: ReleaseOp,
+        FuseOpType.RENAME: RenameOp,
+        FuseOpType.RM_DIR: RmDirOp
     }
 
     @staticmethod
@@ -30,4 +31,3 @@ class FuseOpFactory:
         """
         handler_cls = FuseOpFactory._HANDLERS[op]
         return handler_cls()
-

@@ -1,7 +1,7 @@
 import os
 import logging
 import errno
-from .common import FuseOp, FuseOpResult
+from .. import FuseOp, FuseOpResult
 
 
 class FsyncOp(FuseOp):
@@ -16,7 +16,7 @@ class FsyncOp(FuseOp):
                 os.fsync(file_desc)
         except Exception as e:
             logging.error("Error during fsync request: {}".format(e))
-            result["errno"] = errno.EIO
-            result["message"] = str(e)
+            result.errno = errno.EIO
+            result.data = str(e)
 
         return result

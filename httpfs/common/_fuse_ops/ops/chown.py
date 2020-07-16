@@ -2,7 +2,7 @@ import os
 import stat
 import logging
 import errno
-from .common import FuseOp, FuseOpResult
+from .. import FuseOp, FuseOpResult
 
 
 class ChownOp(FuseOp):
@@ -34,12 +34,12 @@ class ChownOp(FuseOp):
                 os.chown(path, uid, gid)
                 logging.debug("Successful chown for {}".format(client))
             else:
-                result["errno"] = errno.EACCES
-                result["message"] = "Access denied"
+                result.errno = errno.EACCES
+                result.data = "Access denied"
                 logging.warning("Error during chown request: Access denied")
         except Exception as e:
             logging.error("Error during chown request: {}".format(e))
-            result["errno"] = errno.EIO
-            result["message"] = str(e)
+            result.errno = errno.EIO
+            result.data = str(e)
 
         return result

@@ -2,7 +2,7 @@ import os
 import stat
 import logging
 import errno
-from .common import FuseOp, FuseOpType, FuseOpResult
+from .. import FuseOp, FuseOpResult
 
 
 class CreateOp(FuseOp):
@@ -37,12 +37,12 @@ class CreateOp(FuseOp):
                 response["file_descriptor"] = fd
             else:
                 logging.warning("Error during create request: Access denied")
-                response["errno"] = errno.EACCES
-                response["message"] = "Access denied"
+                response.errno = errno.EACCES
+                response.data = "Access denied"
 
         except Exception as e:
             logging.error("Error during create request: {}".format(e))
-            response["errno"] = errno.EIO
-            response["message"] = str(e)
+            response.errno = errno.EIO
+            response.data = str(e)
 
         return response

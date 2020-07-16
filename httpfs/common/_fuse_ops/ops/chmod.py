@@ -2,7 +2,7 @@ import os
 import stat
 import logging
 import errno
-from .common import FuseOp, FuseOpResult
+from .. import FuseOp, FuseOpResult
 
 
 class ChmodOp(FuseOp):
@@ -33,11 +33,11 @@ class ChmodOp(FuseOp):
                 logging.debug("Successful chmod for {}".format(client))
             else:
                 logging.warning("Error during chmod request: Access denied")
-                result["errno"] = errno.EACCES
-                result["message"] = "Access denied"
+                result.errno = errno.EACCES
+                result.data = "Access denied"
         except Exception as e:
             logging.error("Error during chmod request: {}".format(e))
-            result["errno"] = errno.EACCES
-            result["message"] = str(e)
+            result.errno = errno.EACCES
+            result.data = str(e)
 
         return result
